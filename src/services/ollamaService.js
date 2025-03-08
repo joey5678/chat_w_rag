@@ -1,14 +1,55 @@
 /**
  * Ollama服务 - 提供与Ollama API交互的功能
- * 主要用于文本嵌入（向量化）
  */
 
 import axios from 'axios';
 
 // Ollama API的基础URL
 const OLLAMA_BASE_URL = 'http://localhost:11434';
-// 使用的嵌入模型
-const EMBED_MODEL = 'mxbai-embed-large';
+
+/**
+ * 获取可用的模型列表
+ * @returns {Promise<Array>} - 返回可用模型列表
+ */
+export const getAvailableModels = async () => {
+  try {
+    const response = await axios.get(`${OLLAMA_BASE_URL}/api/tags`);
+    if (response.data && Array.isArray(response.data.models)) {
+      return response.data.models;
+    }
+    return [];
+  } catch (error) {
+    console.error('获取模型列表失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 与模型进行对话
+ * @param {string} prompt - 用户输入的文本
+ * @param {string} model - 使用的模型名称
+ * @param {Array} history - 对话历史记录
+ * @returns {Promise<string>} - 返回模型的回复
+ */
+export const chat = async (prompt, model, history = []) => {
+  try {
+    const response = await axios.post(`${OLLAMA_BASE_URL}/api/chat`, {
+      model,
+      messages: [
+        ...history,
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    if (response.data && response.data.message) {
+      return response.data.message.content;
+    }
+    throw new Error('无效的响应格式');
+  } catch (error) {
+    console.error('聊天请求失败:', error);
+    throw error;
+  }
+};
 
 /**
  * 获取文本的嵌入向量
@@ -18,7 +59,7 @@ const EMBED_MODEL = 'mxbai-embed-large';
 export const getEmbedding = async (text) => {
   try {
     const response = await axios.post(`${OLLAMA_BASE_URL}/api/embeddings`, {
-      model: EMBED_MODEL,
+      model: 'mxbai-embed-large',
       prompt: text
     });
     

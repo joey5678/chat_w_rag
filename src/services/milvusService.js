@@ -12,14 +12,26 @@ const API_BASE_URL = 'http://localhost:3000/api/milvus';
  * 检查Milvus服务是否可用
  * @returns {Promise<boolean>} - 返回服务是否可用
  */
-export const checkMilvusService = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/status`);
-    return response.data.status === 'available';
-  } catch (error) {
-    console.error('Milvus服务检查失败:', error);
-    return false;
+export const checkMilvusService = async (retryCount = 3, retryDelay = 1000) => {
+  for (let i = 0; i < retryCount; i++) {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/status`, {
+        timeout: 5000 // 5秒超时
+      });
+      if (response.data.status === 'available') {
+        return true;
+      }
+      throw new Error('Milvus服务状态异常');
+    } catch (error) {
+      console.error(`Milvus服务检查失败 (尝试 ${i + 1}/${retryCount}):`, error);
+      
+      if (i < retryCount - 1) {
+        console.log(`等待 ${retryDelay}ms 后重试...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
   }
+  return false;
 };
 
 /**
@@ -89,20 +101,8 @@ export const getRecentDocuments = async () => {
 
 export const clearCollection = async () => {
   try {
-    const client = await initMilvusClient();
-    const exists = await hasCollection();
-    
-    if (exists) {
-      await client.dropCollection({
-        collection_name: COLLECTION_NAME
-      });
-      console.log(`集合 ${COLLECTION_NAME} 已清空`);
-      
-      // 重新创建集合
-      await createDocumentCollection();
-      return true;
-    }
-    return false;
+    const response = await axios.post(`${API_BASE_URL}/clear-collection`);
+    return response.data.success;
   } catch (error) {
     console.error('清空集合失败:', error);
     throw error;

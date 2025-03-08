@@ -50,6 +50,9 @@ const DocumentManagement = () => {
     const checkServices = async () => {
       if (!mounted) return;
       try {
+        // 清空 localStorage
+        localStorage.removeItem('recentDocuments');
+        
         // 检查Ollama服务
         const ollamaStatus = await checkOllamaService();
         if (mounted) setOllamaAvailable(ollamaStatus);
@@ -57,6 +60,8 @@ const DocumentManagement = () => {
         // 初始化Milvus集合
         try {
           await createDocumentCollection();
+          // 清空集合中的数据
+          await clearCollection();
           if (mounted) setMilvusAvailable(true);
         } catch (error) {
           console.error('Milvus初始化失败:', error);
@@ -221,8 +226,8 @@ const DocumentManagement = () => {
     '.pdf', '.docx', '.doc', '.txt', '.md', '.js', '.py', '.java', '.c', '.cpp', '.html', '.css', '.json'
   ];
 
-  // 文件大小限制（5MB）
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  // 文件大小限制（20MB）
+  const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
   // 检查文件类型是否允许
   const isFileTypeAllowed = (file) => {
@@ -240,7 +245,7 @@ const DocumentManagement = () => {
     beforeUpload: (file) => {
       // 检查文件大小
       if (file.size > MAX_FILE_SIZE) {
-        message.error(`文件 ${file.name} 超过5MB限制，请选择更小的文件`);
+        message.error(`文件 ${file.name} 超过20MB限制，请选择更小的文件`);
         return false;
       }
       

@@ -17,21 +17,36 @@ let milvusClient = null;
 let milvusAvailable = false;
 
 // 延迟初始化Milvus客户端
-const initMilvusClient = async () => {
-  if (!milvusClient) {
+const initMilvusClient = async (retryCount = 3, retryDelay = 1000) => {
+  for (let i = 0; i < retryCount; i++) {
     try {
-      milvusClient = new MilvusClient(MILVUS_ADDRESS);
-      await milvusClient.listCollections(); // 测试连接
+      if (!milvusClient) {
+        milvusClient = new MilvusClient(MILVUS_ADDRESS, {
+          address: MILVUS_ADDRESS,
+          connectTimeout: 10000, // 10秒连接超时
+          keepAlive: true,
+          keepAliveTimeout: 30000 // 30秒保活超时
+        });
+      }
+      
+      // 测试连接
+      await milvusClient.listCollections();
       milvusAvailable = true;
       console.log('Milvus客户端初始化成功');
+      return milvusClient;
     } catch (error) {
-      console.error('Milvus客户端初始化失败:', error);
+      console.error(`Milvus客户端初始化失败 (尝试 ${i + 1}/${retryCount}):`, error);
       milvusClient = null;
       milvusAvailable = false;
-      throw error;
+      
+      if (i < retryCount - 1) {
+        console.log(`等待 ${retryDelay}ms 后重试...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } else {
+        throw new Error(`Milvus服务连接失败，已重试 ${retryCount} 次: ${error.message}`);
+      }
     }
   }
-  return milvusClient;
 };
 
 // 检查Milvus服务状态
@@ -166,45 +181,47 @@ app.get('/api/milvus/recent-documents', async (req, res) => {
       collection_name: COLLECTION_NAME
     });
 
-    // 首先获取所有不重复的file_id
-    const distinctFileIds = await client.query({
+    // 直接获取最新的10条记录
+    const result = await client.query({
       collection_name: COLLECTION_NAME,
-      output_fields: ['file_id'],
+      output_fields: ['file_id', 'metadata'],
+      expr: 'file_id != ""',  // 确保file_id不为空
       limit: 10,
       sort_field: 'id',
       sort_order: 'DESC'
     });
 
-    // 对每个file_id只获取最新的记录
-    const uniqueFileIds = [...new Set(distinctFileIds.data.map(doc => doc.file_id))];
-    const recentDocuments = [];
+    // 使用Map进行去重，保留最新的记录
+    const uniqueDocuments = new Map();
+    result.data.forEach(doc => {
+      const metadata = JSON.parse(doc.metadata);
+      const key = doc.file_id;
+      const existingDoc = uniqueDocuments.get(key);
+      
+      if (!existingDoc || new Date(metadata.uploadTime) > new Date(JSON.parse(existingDoc.metadata).uploadTime)) {
+        uniqueDocuments.set(key, doc);
+      }
+    });
 
-    for (const fileId of uniqueFileIds) {
-      const result = await client.query({
-        collection_name: COLLECTION_NAME,
-        output_fields: ['file_id', 'metadata'],
-        expr: `file_id == '${fileId}'`,
-        limit: 1,
-        sort_field: 'id',
-        sort_order: 'DESC'
-      });
-
-      if (result.data.length > 0) {
-        const doc = result.data[0];
+    // 处理查询结果，并按上传时间排序
+    const recentDocuments = Array.from(uniqueDocuments.values())
+      .map(doc => {
         const metadata = JSON.parse(doc.metadata);
-        recentDocuments.push({
+        return {
           uid: doc.file_id,
           name: metadata.fileName,
           type: metadata.type,
           description: metadata.description,
           status: 'done',
-          uploadTime: metadata.timestamp
-        });
-      }
-    }
+          uploadTime: metadata.uploadTime
+        };
+      })
+      .sort((a, b) => new Date(b.uploadTime) - new Date(a.uploadTime))
+      .slice(0, 10);
 
     res.json(recentDocuments);
   } catch (error) {
+    console.error('获取最近文档失败:', error);
     res.status(503).json({ error: error.message });
   }
 });
@@ -291,5 +308,26 @@ app.post('/api/pdf/extract', async (req, res) => {
   } catch (error) {
     console.error('PDF处理失败:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 清空集合
+app.post('/api/milvus/clear-collection', async (req, res) => {
+  try {
+    const client = await initMilvusClient();
+    
+    await client.loadCollection({
+      collection_name: COLLECTION_NAME
+    });
+
+    await client.delete({
+      collection_name: COLLECTION_NAME,
+      expr: 'id >= 0'
+    });
+
+    res.json({ success: true, message: '集合已清空' });
+  } catch (error) {
+    console.error('清空集合失败:', error);
+    res.status(503).json({ error: error.message });
   }
 });

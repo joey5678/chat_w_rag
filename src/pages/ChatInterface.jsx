@@ -1,24 +1,46 @@
-import React, { useState } from 'react';
-import { Input, Button, Select, Card, List, Space, message } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Input, Button, Select, Card, List, Space, message, Switch, Tooltip } from 'antd';
+import { SendOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons';
+import { getAvailableModels, chat } from '../services/ollamaService';
 
 const { TextArea } = Input;
+
+const databases = [
+  { label: '全部知识库', value: 'all' },
+  { label: '个人知识库', value: 'personal' },
+  { label: '公共知识库', value: 'public' }
+];
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [selectedDatabase, setSelectedDatabase] = useState('all');
   const [loading, setLoading] = useState(false);
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [useHistory, setUseHistory] = useState(true);
+  const [chatHistory, setChatHistory] = useState([]);
 
-  const databases = [
-    { label: '全部数据', value: 'all' },
-    { label: '技术文档', value: 'technical' },
-    { label: '代码文件', value: 'code' },
-    { label: '笔记', value: 'notes' }
-  ];
+  useEffect(() => {
+    // 获取可用模型列表
+    const fetchModels = async () => {
+      try {
+        const modelList = await getAvailableModels();
+        setModels(modelList);
+        if (modelList.length > 0) {
+          setSelectedModel(modelList[0].name);
+        }
+      } catch (error) {
+        message.error('获取模型列表失败');
+        console.error('获取模型列表失败:', error);
+      }
+    };
+
+    fetchModels();
+  }, []);
 
   const handleSend = async () => {
-    if (!inputText.trim()) {
+    if (!inputText.trim() || !selectedModel) {
       return;
     }
 
@@ -33,14 +55,16 @@ const ChatInterface = () => {
     setLoading(true);
 
     try {
-      // TODO: 实现与Ollama API的集成
-      // 1. 准备上下文（从Milvus检索相关文档）
-      // 2. 调用Ollama API进行对话
-      // 3. 处理响应
+      const history = useHistory ? messages.map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      })) : [];
+
+      const response = await chat(inputText, selectedModel, history);
 
       const assistantMessage = {
         type: 'assistant',
-        content: '这是一个模拟的回复。实际实现时，这里将是来自Ollama的响应。',
+        content: response,
         timestamp: new Date().toISOString()
       };
 
@@ -53,18 +77,67 @@ const ChatInterface = () => {
     }
   };
 
+  const handleNewChat = () => {
+    if (messages.length > 0) {
+      setChatHistory([...chatHistory, messages]);
+    }
+    setMessages([]);
+  };
+
+  const handleHistorySelect = (index) => {
+    if (messages.length > 0) {
+      setChatHistory([...chatHistory, messages]);
+    }
+    setMessages(chatHistory[index]);
+    setChatHistory(chatHistory.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="chat-container">
       <Card
         title="知识问答"
         extra={
-          <Select
-            value={selectedDatabase}
-            onChange={setSelectedDatabase}
-            style={{ width: 200 }}
-            options={databases}
-            placeholder="选择知识库范围"
-          />
+          <Space>
+            <Select
+              value={selectedModel}
+              onChange={setSelectedModel}
+              style={{ width: 200 }}
+              options={models.map(model => ({ label: model.name, value: model.name }))}
+              placeholder="选择模型"
+            />
+            <Select
+              value={selectedDatabase}
+              onChange={setSelectedDatabase}
+              style={{ width: 200 }}
+              options={databases}
+              placeholder="选择知识库范围"
+            />
+            <Tooltip title="使用历史记录">
+              <Switch
+                checked={useHistory}
+                onChange={setUseHistory}
+                checkedChildren="历史"
+                unCheckedChildren="历史"
+              />
+            </Tooltip>
+            <Tooltip title="新建对话">
+              <Button
+                icon={<PlusOutlined />}
+                onClick={handleNewChat}
+              />
+            </Tooltip>
+            <Tooltip title="查看历史对话">
+              <Select
+                style={{ width: 120 }}
+                placeholder="历史对话"
+                onChange={handleHistorySelect}
+                options={chatHistory.map((_, index) => ({
+                  label: `对话 ${index + 1}`,
+                  value: index
+                }))}
+              />
+            </Tooltip>
+          </Space>
         }
       >
         <List
