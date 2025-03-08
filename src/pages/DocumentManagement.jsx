@@ -3,7 +3,8 @@ import { Upload, Form, Input, Select, Button, Card, Table, message, Spin } from 
 import { InboxOutlined } from '@ant-design/icons';
 import { processAndStoreDocument } from '../services/documentService';
 import { checkOllamaService } from '../services/ollamaService';
-import { createDocumentCollection, getRecentDocuments } from '../services/milvusService';
+import { createDocumentCollection, getRecentDocuments, clearCollection} from '../services/milvusService';
+import { render } from 'react-dom';
 
 const { Dragger } = Upload;
 const { Option } = Select;
@@ -21,6 +22,10 @@ const DocumentManagement = () => {
     const fetchRecentDocuments = async () => {
       try {
         const documents = await getRecentDocuments();
+        console.log(`获取到 ${documents.length} 个最近文档:`);
+        documents.forEach(doc => {
+          console.log(`- ${doc.name} (${doc.type}): ${doc.status}`);
+        });
         setRecentDocuments(documents);
         localStorage.setItem('recentDocuments', JSON.stringify(documents));
       } catch (error) {
@@ -38,7 +43,12 @@ const DocumentManagement = () => {
   // 更新最近的文档列表
   const updateRecentDocuments = (newDoc) => {
     setRecentDocuments(prev => {
-      const updated = [newDoc, ...prev].slice(0, 10);
+      // 确保新文档包含uploadTime字段
+      const docWithTime = {
+        ...newDoc,
+        uploadTime: newDoc.uploadTime || new Date().toISOString()
+      };
+      const updated = [docWithTime, ...prev].slice(0, 10);
       localStorage.setItem('recentDocuments', JSON.stringify(updated));
       return updated;
     });
@@ -51,7 +61,7 @@ const DocumentManagement = () => {
       if (!mounted) return;
       try {
         // 清空 localStorage
-        localStorage.removeItem('recentDocuments');
+        // localStorage.removeItem('recentDocuments');
         
         // 检查Ollama服务
         const ollamaStatus = await checkOllamaService();
@@ -59,9 +69,8 @@ const DocumentManagement = () => {
         
         // 初始化Milvus集合
         try {
+          // await clearCollection();
           await createDocumentCollection();
-          // 清空集合中的数据
-          await clearCollection();
           if (mounted) setMilvusAvailable(true);
         } catch (error) {
           console.error('Milvus初始化失败:', error);
@@ -353,7 +362,12 @@ const DocumentManagement = () => {
                 title: '上传时间',
                 dataIndex: 'uploadTime',
                 key: 'uploadTime',
-                render: (time) => time ? new Date(time).toLocaleString() : '-'
+                render: (time, record) => {
+                  // 尝试从metadata中获取uploadTime
+                  const metadata = record.metadata ? JSON.parse(record.metadata) : null;
+                  const timestamp = time || (metadata && metadata.uploadTime) || record.timestamp;
+                  return timestamp ? new Date(timestamp).toLocaleString() : '-';
+                }
               }]}
               dataSource={recentDocuments}
               rowKey="uid"

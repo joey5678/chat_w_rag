@@ -17,16 +17,11 @@ let milvusClient = null;
 let milvusAvailable = false;
 
 // 延迟初始化Milvus客户端
-const initMilvusClient = async (retryCount = 3, retryDelay = 1000) => {
+const initMilvusClient = async (retryCount = 1, retryDelay = 1000) => {
   for (let i = 0; i < retryCount; i++) {
     try {
       if (!milvusClient) {
-        milvusClient = new MilvusClient(MILVUS_ADDRESS, {
-          address: MILVUS_ADDRESS,
-          connectTimeout: 10000, // 10秒连接超时
-          keepAlive: true,
-          keepAliveTimeout: 30000 // 30秒保活超时
-        });
+        milvusClient = new MilvusClient(MILVUS_ADDRESS);
       }
       
       // 测试连接
@@ -160,12 +155,12 @@ app.post('/api/milvus/documents', async (req, res) => {
       metadata: metadatas[index],
       embedding: embeddings[index]
     }));
-
+    // console.log(fields_data);
     const insertResult = await client.insert({
       collection_name: COLLECTION_NAME,
       fields_data: fields_data
     });
-
+    console.log(insertResult);
     res.json(insertResult);
   } catch (error) {
     res.status(503).json({ error: error.message });
@@ -186,20 +181,24 @@ app.get('/api/milvus/recent-documents', async (req, res) => {
       collection_name: COLLECTION_NAME,
       output_fields: ['file_id', 'metadata'],
       expr: 'file_id != ""',  // 确保file_id不为空
-      limit: 10,
+      // limit: 10,
       sort_field: 'id',
       sort_order: 'DESC'
     });
-
+    // console.log(result);
     // 使用Map进行去重，保留最新的记录
     const uniqueDocuments = new Map();
     result.data.forEach(doc => {
       const metadata = JSON.parse(doc.metadata);
+      
       const key = doc.file_id;
+      // console.log(key);
       const existingDoc = uniqueDocuments.get(key);
       
-      if (!existingDoc || new Date(metadata.uploadTime) > new Date(JSON.parse(existingDoc.metadata).uploadTime)) {
-        uniqueDocuments.set(key, doc);
+      if (!existingDoc || new Date(metadata.timestamp) > new Date(JSON.parse(existingDoc.metadata).timestamp)) {
+        uniqueDocuments.set(key, {
+          ...doc
+        });
       }
     });
 
@@ -207,13 +206,14 @@ app.get('/api/milvus/recent-documents', async (req, res) => {
     const recentDocuments = Array.from(uniqueDocuments.values())
       .map(doc => {
         const metadata = JSON.parse(doc.metadata);
+        console.log(metadata);
         return {
           uid: doc.file_id,
           name: metadata.fileName,
           type: metadata.type,
           description: metadata.description,
           status: 'done',
-          uploadTime: metadata.uploadTime
+          uploadTime: metadata.timestamp
         };
       })
       .sort((a, b) => new Date(b.uploadTime) - new Date(a.uploadTime))
@@ -322,7 +322,7 @@ app.post('/api/milvus/clear-collection', async (req, res) => {
 
     await client.delete({
       collection_name: COLLECTION_NAME,
-      expr: 'id >= 0'
+      filter: 'id >= 0'
     });
 
     res.json({ success: true, message: '集合已清空' });
