@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Form, Input, Select, Button, Card, Table, message, Spin } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
 import { processAndStoreDocument } from '../services/documentService';
-import { checkOllamaService } from '../services/ollamaService';
-import { createDocumentCollection, getRecentDocuments, clearCollection} from '../services/milvusService';
+import { getRecentDocuments, clearCollection} from '../services/milvusService';
 import { render } from 'react-dom';
 
 const { Dragger } = Upload;
@@ -13,9 +12,7 @@ const DocumentManagement = () => {
   const [fileList, setFileList] = useState([]);
   const [recentDocuments, setRecentDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [ollamaAvailable, setOllamaAvailable] = useState(false);
-  const [milvusAvailable, setMilvusAvailable] = useState(false);
-  const [initializing, setInitializing] = useState(true);
+  const [initializing, setInitializing] = useState(false);
 
   // 从Milvus获取最近文档并同步到localStorage
   useEffect(() => {
@@ -53,41 +50,6 @@ const DocumentManagement = () => {
       return updated;
     });
   };
-
-  // 初始化检查服务可用性
-  useEffect(() => {
-    let mounted = true;
-    const checkServices = async () => {
-      if (!mounted) return;
-      try {
-        // 清空 localStorage
-        // localStorage.removeItem('recentDocuments');
-        
-        // 检查Ollama服务
-        const ollamaStatus = await checkOllamaService();
-        if (mounted) setOllamaAvailable(ollamaStatus);
-        
-        // 初始化Milvus集合
-        try {
-          // await clearCollection();
-          await createDocumentCollection();
-          if (mounted) setMilvusAvailable(true);
-        } catch (error) {
-          console.error('Milvus初始化失败:', error);
-          if (mounted) setMilvusAvailable(false);
-        }
-      } catch (error) {
-        console.error('服务检查失败:', error);
-      } finally {
-        if (mounted) setInitializing(false);
-      }
-    };
-    
-    checkServices();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const documentTypes = [
     { label: '技术文档', value: 'technical' },
@@ -284,98 +246,55 @@ const DocumentManagement = () => {
 
   return (
     <div className="document-upload">
-      {initializing ? (
-        <Card>
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <Spin tip="正在初始化服务..." />
-          </div>
-        </Card>
-      ) : (
-        <>
-          <Card title="服务状态" style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: ollamaAvailable ? '#52c41a' : '#ff4d4f'
-                }} />
-                <span>Ollama服务: {ollamaAvailable ? '可用' : '不可用'}</span>
-                {!ollamaAvailable && (
-                  <span style={{ color: '#ff4d4f', fontSize: '12px', marginLeft: '8px' }}>
-                    (请确保已启动并加载mxbai-embed-large模型)
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: milvusAvailable ? '#52c41a' : '#ff4d4f'
-                }} />
-                <span>Milvus服务: {milvusAvailable ? '可用' : '不可用'}</span>
-                {!milvusAvailable && (
-                  <span style={{ color: '#ff4d4f', fontSize: '12px', marginLeft: '8px' }}>
-                    (请确保服务已启动)
-                  </span>
-                )}
-              </div>
-            </div>
-          </Card>
-          
-          <Card title="文档上传" style={{ marginBottom: 24 }}>
-            <Form onFinish={handleUpload}>
-              <Form.Item>
-                <Dragger {...uploadProps}>
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
-                  <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-                  <p className="ant-upload-hint">
-                    支持单个或批量上传，请选择文档文件
-                  </p>
-                </Dragger>
-              </Form.Item>
-              <Form.Item label="文档类型" name="type">
-                <Select placeholder="请选择文档类型">
-                  {documentTypes.map(type => (
-                    <Option key={type.value} value={type.value}>{type.label}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-              <Form.Item label="描述" name="description">
-                <Input.TextArea placeholder="请输入文档描述" />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit" loading={uploading} block>
-                  开始上传
-                </Button>
-              </Form.Item>
-            </Form>
-          </Card>
+      <Card title="文档上传" style={{ marginBottom: 24 }}>
+        <Form onFinish={handleUpload}>
+          <Form.Item>
+            <Dragger {...uploadProps}>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+              <p className="ant-upload-hint">
+                支持单个或批量上传，请选择文档文件
+              </p>
+            </Dragger>
+          </Form.Item>
+          <Form.Item label="文档类型" name="type">
+            <Select placeholder="请选择文档类型">
+              {documentTypes.map(type => (
+                <Option key={type.value} value={type.value}>{type.label}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item label="描述" name="description">
+            <Input.TextArea placeholder="请输入文档描述" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={uploading} block>
+              开始上传
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
 
-          <Card title="文档列表">
-            <Table
-              columns={[...columns, {
-                title: '上传时间',
-                dataIndex: 'uploadTime',
-                key: 'uploadTime',
-                render: (time, record) => {
-                  // 尝试从metadata中获取uploadTime
-                  const metadata = record.metadata ? JSON.parse(record.metadata) : null;
-                  const timestamp = time || (metadata && metadata.uploadTime) || record.timestamp;
-                  return timestamp ? new Date(timestamp).toLocaleString() : '-';
-                }
-              }]}
-              dataSource={recentDocuments}
-              rowKey="uid"
-              pagination={false}
-            />
-          </Card>
-        </>
-      )}
+      <Card title="文档列表">
+        <Table
+          columns={[...columns, {
+            title: '上传时间',
+            dataIndex: 'uploadTime',
+            key: 'uploadTime',
+            render: (time, record) => {
+              // 尝试从metadata中获取uploadTime
+              const metadata = record.metadata ? JSON.parse(record.metadata) : null;
+              const timestamp = time || (metadata && metadata.uploadTime) || record.timestamp;
+              return timestamp ? new Date(timestamp).toLocaleString() : '-';
+            }
+          }]}
+          dataSource={recentDocuments}
+          rowKey="uid"
+          pagination={false}
+        />
+      </Card>
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { SendOutlined, DatabaseOutlined, ClearOutlined, PlusOutlined, HistoryOut
 import { getAvailableModels, chat, getEmbedding } from '../services/ollamaService';
 import { getRecentDocuments, searchSimilarDocuments } from '../services/milvusService';
 import { formatMessageContent } from '../utils/formatUtils';
+import { UserOutlined, RobotOutlined } from '@ant-design/icons';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -34,6 +35,14 @@ const KnowledgeQA = () => {
     fetchDocuments();
   }, []);
 
+  // 添加自动滚动功能
+  useEffect(() => {
+    const messageList = document.querySelector('.message-list');
+    if (messageList) {
+      messageList.scrollTop = messageList.scrollHeight;
+    }
+  }, [messages]);
+  
   // 获取可用模型列表
   const fetchModels = async () => {
     try {
@@ -314,7 +323,17 @@ const KnowledgeQA = () => {
                 <List.Item className={`message-item message-${item.type}`}>
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <div style={{ fontWeight: 'bold' }}>
-                      {item.type === 'user' ? '你' : item.type === 'system' ? '系统' : 'AI助手'}
+                      {item.type === 'user' ? (
+                        <Space>
+                          <UserOutlined />
+                          <span>你</span>
+                        </Space>
+                      ) : item.type === 'system' ? '系统' : (
+                        <Space>
+                          <RobotOutlined />
+                          <span>AI助手</span>
+                        </Space>
+                      )}
                     </div>
                     {(() => {
                         const { content, isFormatted } = formatMessageContent(item.content);
