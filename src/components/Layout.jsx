@@ -15,11 +15,7 @@ const AppLayout = () => {
       icon: <FileTextOutlined />,
       label: '文档管理'
     },
-    {
-      key: '/chat',
-      icon: <MessageOutlined />,
-      label: '聊天'
-    },
+
     {
       key: '/knowledge-qa',
       icon: <BookOutlined />,

@@ -4,11 +4,11 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import './index.css';
+import './utils/formatStyles.css'; // 导入格式化内容的样式
 
 // 导入页面组件
 import Layout from './components/Layout';
 import DocumentManagement from './pages/DocumentManagement';
-import ChatInterface from './pages/ChatInterface';
 import KnowledgeQA from './pages/KnowledgeQA';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -18,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<DocumentManagement />} />
-            <Route path="chat" element={<ChatInterface />} />
+            {/* <Route path="chat" element={<ChatInterface />} /> */}
             <Route path="knowledge-qa" element={<KnowledgeQA />} />
           </Route>
         </Routes>

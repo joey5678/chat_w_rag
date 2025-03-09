@@ -3,6 +3,7 @@ import { Input, Button, Select, Card, List, Space, message, Switch, Tooltip, Spi
 import { SendOutlined, DatabaseOutlined, ClearOutlined, PlusOutlined, HistoryOutlined } from '@ant-design/icons';
 import { getAvailableModels, chat, getEmbedding } from '../services/ollamaService';
 import { getRecentDocuments, searchSimilarDocuments } from '../services/milvusService';
+import { formatMessageContent } from '../utils/formatUtils';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -315,7 +316,17 @@ const KnowledgeQA = () => {
                     <div style={{ fontWeight: 'bold' }}>
                       {item.type === 'user' ? '你' : item.type === 'system' ? '系统' : 'AI助手'}
                     </div>
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{item.content}</div>
+                    {(() => {
+                        const { content, isFormatted } = formatMessageContent(item.content);
+                        return isFormatted ? (
+                          <div 
+                            className="formatted-content"
+                            dangerouslySetInnerHTML={{ __html: content }}
+                          />
+                        ) : (
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
+                        );
+                      })()}
                   </Space>
                 </List.Item>
               )}
