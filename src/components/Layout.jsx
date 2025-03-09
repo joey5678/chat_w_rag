@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { FileTextOutlined, MessageOutlined } from '@ant-design/icons';
+import { FileTextOutlined, MessageOutlined, BookOutlined } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 
 const { Header, Content } = Layout;
@@ -18,6 +18,11 @@ const AppLayout = () => {
     {
       key: '/chat',
       icon: <MessageOutlined />,
+      label: '聊天'
+    },
+    {
+      key: '/knowledge-qa',
+      icon: <BookOutlined />,
       label: '知识问答'
     }
   ];

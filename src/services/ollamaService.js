@@ -33,17 +33,49 @@ export const getAvailableModels = async () => {
  */
 export const chat = async (prompt, model, history = []) => {
   try {
+    // 使用流式响应模式
     const response = await axios.post(`${OLLAMA_BASE_URL}/api/chat`, {
       model,
       messages: [
         ...history,
         { role: 'user', content: prompt }
-      ]
+      ],
+      stream: true
+    }, {
+      responseType: 'text',
+      transformResponse: [data => data] // 防止自动解析JSON
     });
 
-    if (response.data && response.data.message) {
-      return response.data.message.content;
+    // 处理流式响应
+    if (response.data) {
+      // 将响应按行分割，每行是一个JSON对象
+      const lines = response.data.split('\n').filter(line => line.trim() !== '');
+      let fullContent = '';
+      
+      // 遍历每一行JSON响应
+      for (const line of lines) {
+        try {
+          const jsonData = JSON.parse(line);
+          
+          // 如果是最后一条消息且完成
+          if (jsonData.done === true) {
+            break;
+          }
+          
+          // 提取消息内容并拼接
+          if (jsonData.message && jsonData.message.content) {
+            fullContent += jsonData.message.content;
+          }
+        } catch (parseError) {
+          console.error('解析JSON响应失败:', parseError);
+        }
+      }
+      
+      if (fullContent) {
+        return fullContent;
+      }
     }
+    
     throw new Error('无效的响应格式');
   } catch (error) {
     console.error('聊天请求失败:', error);
@@ -58,17 +90,24 @@ export const chat = async (prompt, model, history = []) => {
  */
 export const getEmbedding = async (text) => {
   try {
+    console.log(`【嵌入服务】开始获取文本嵌入，文本长度: ${text.length}字符`);
+    console.log(`【嵌入服务】使用模型: mxbai-embed-large`);
+    
     const response = await axios.post(`${OLLAMA_BASE_URL}/api/embeddings`, {
       model: 'mxbai-embed-large',
       prompt: text
     });
     
     if (response.data && response.data.embedding) {
-      return response.data.embedding;
+      const embedding = response.data.embedding;
+      console.log(`【嵌入服务】嵌入向量生成成功，维度: ${embedding.length}`);
+      console.log(`【嵌入服务】嵌入向量示例(前5个值): [${embedding.slice(0, 5).join(', ')}...]`);
+      return embedding;
     }
+    console.error('【嵌入服务错误】响应中没有embedding字段:', response.data);
     throw new Error('无法获取嵌入向量');
   } catch (error) {
-    console.error('获取嵌入向量失败:', error);
+    console.error('【嵌入服务错误】获取嵌入向量失败:', error);
     throw error;
   }
 };

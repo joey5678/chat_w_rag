@@ -9,6 +9,7 @@ import './index.css';
 import Layout from './components/Layout';
 import DocumentManagement from './pages/DocumentManagement';
 import ChatInterface from './pages/ChatInterface';
+import KnowledgeQA from './pages/KnowledgeQA';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/" element={<Layout />}>
             <Route index element={<DocumentManagement />} />
             <Route path="chat" element={<ChatInterface />} />
+            <Route path="knowledge-qa" element={<KnowledgeQA />} />
           </Route>
         </Routes>
       </Router>

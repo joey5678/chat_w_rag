@@ -229,24 +229,89 @@ app.get('/api/milvus/recent-documents', async (req, res) => {
 // 搜索文档
 app.post('/api/milvus/search', async (req, res) => {
   try {
-    const { queryEmbedding, topK = 5 } = req.body;
+    console.log('【搜索API】接收到搜索请求');
+    const { queryEmbedding, topK = 5, fileIds = [] } = req.body;
+    
+    // 检查嵌入向量维度
+    if (!queryEmbedding || !Array.isArray(queryEmbedding)) {
+      console.error('【搜索API错误】查询嵌入向量无效:', queryEmbedding);
+      return res.status(400).json({ error: '查询嵌入向量无效' });
+    }
+    
+    console.log(`【搜索API】查询嵌入向量维度: ${queryEmbedding.length}`);
+    console.log(`【搜索API】请求参数: topK=${topK}, fileIds长度=${fileIds.length}`);
+    
     const client = await initMilvusClient();
+
+    // 获取集合信息，检查嵌入维度
+    try {
+      const collectionInfo = await client.describeCollection({
+        collection_name: COLLECTION_NAME
+      });
+      console.log('【搜索API】集合信息:', JSON.stringify(collectionInfo));
+      
+      // 查找embedding字段的维度
+      const embeddingField = collectionInfo.schema.fields.find(field => field.name === 'embedding');
+      if (embeddingField) {
+        console.log(`【搜索API】集合中embedding字段维度: ${embeddingField.dim}`);
+        
+        // 检查维度是否匹配
+        if (embeddingField.dim != queryEmbedding.length) {
+          console.error(`【搜索API错误】嵌入维度不匹配: 查询=${queryEmbedding.length}, 集合=${embeddingField.dim}`);
+          return res.status(400).json({ 
+            error: `嵌入维度不匹配: 查询=${queryEmbedding.length}, 集合=${embeddingField.dim}` 
+          });
+        }
+      }
+    } catch (infoError) {
+      console.error('【搜索API错误】获取集合信息失败:', infoError);
+    }
 
     await client.loadCollection({
       collection_name: COLLECTION_NAME
     });
+    console.log('【搜索API】集合加载成功');
 
+    // 检查索引信息
+    try {
+      const indexInfo = await client.describeIndex({
+        collection_name: COLLECTION_NAME,
+        field_name: 'embedding'
+      });
+      console.log('【搜索API】索引信息:', JSON.stringify(indexInfo));
+    } catch (indexError) {
+      console.error('【搜索API错误】获取索引信息失败:', indexError);
+    }
+
+    // 构建搜索表达式，如果提供了fileIds，则按文件ID过滤
+    let expr = '';
+    if (fileIds && fileIds.length > 0) {
+      // 构建IN表达式: file_id in ["id1", "id2", ...]
+      const fileIdsStr = fileIds.map(id => `"${id}"`).join(', ');
+      expr = `file_id in [${fileIdsStr}]`;
+      console.log(`【搜索API】按文件ID过滤搜索: ${expr}`);
+    }
+
+    console.log('【搜索API】开始执行搜索...');
     const searchResult = await client.search({
       collection_name: COLLECTION_NAME,
-      vector: queryEmbedding,
-      field_name: 'embedding',
+      data: [queryEmbedding],
+      anns_field: 'embedding',
       limit: topK,
       output_fields: ['file_id', 'content', 'metadata'],
-      search_params: {
-        metric_type: 'COSINE',
-        params: JSON.stringify({ ef: 64 })
-      }
+      //search_params: {
+      //  metric_type: 'COSINE',
+      //  params: JSON.stringify({ ef: 64 })
+      //},
+      expr: expr || undefined
     });
+    
+    console.log(`【搜索API】搜索完成，结果数量: ${searchResult.results ? searchResult.results.length : 0}`);
+    if (searchResult.results && searchResult.results.length > 0) {
+      console.log('【搜索API】搜索结果示例:', JSON.stringify(searchResult.results[0]));
+    } else {
+      console.log('【搜索API】未找到匹配结果');
+    }
 
     const results = searchResult.results.map(result => ({
       id: result.id,

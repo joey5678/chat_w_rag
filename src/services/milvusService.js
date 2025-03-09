@@ -69,14 +69,40 @@ export const insertDocuments = async (documents) => {
  * 根据向量相似度搜索文档
  * @param {Array<number>} queryEmbedding - 查询向量
  * @param {number} topK - 返回结果数量
+ * @param {Array<string>} [fileIds] - 可选的文件ID列表，用于过滤搜索范围
  * @returns {Promise<Array>} - 搜索结果
  */
-export const searchSimilarDocuments = async (queryEmbedding, topK = 5) => {
+export const searchSimilarDocuments = async (queryEmbedding, topK = 5, fileIds = []) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/search`, { queryEmbedding, topK });
+    // 验证查询向量
+    if (!queryEmbedding || !Array.isArray(queryEmbedding)) {
+      console.error('【Milvus搜索错误】查询向量无效:', queryEmbedding);
+      throw new Error('查询向量无效');
+    }
+    
+    console.log(`【Milvus搜索】开始搜索，查询向量维度: ${queryEmbedding.length}`);
+    console.log(`【Milvus搜索】topK: ${topK}, 文件ID过滤: ${fileIds.length > 0 ? fileIds.join(', ') : '无'}`);
+    
+    const response = await axios.post(`${API_BASE_URL}/search`, { queryEmbedding, topK, fileIds });
+    
+    if (response.data && Array.isArray(response.data)) {
+      console.log(`【Milvus搜索】搜索成功，返回结果数量: ${response.data.length}`);
+      if (response.data.length === 0) {
+        console.log('【Milvus搜索】警告: 未找到匹配结果，可能原因:');
+        console.log('  1. 嵌入维度不匹配');
+        console.log('  2. 文件ID过滤条件过严');
+        console.log('  3. 向量数据库中没有相关文档');
+      }
+    } else {
+      console.error('【Milvus搜索错误】响应格式异常:', response.data);
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('搜索文档失败:', error);
+    console.error('【Milvus搜索错误】搜索文档失败:', error);
+    if (error.response) {
+      console.error('【Milvus搜索错误】服务器响应:', error.response.data);
+    }
     throw error;
   }
 };
