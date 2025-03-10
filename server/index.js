@@ -327,6 +327,43 @@ app.post('/api/milvus/search', async (req, res) => {
   }
 });
 
+// 删除文档
+app.delete('/api/milvus/document/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    if (!fileId) {
+      return res.status(400).json({ error: '缺少文件ID' });
+    }
+    
+    console.log(`【删除API】开始删除文件ID: ${fileId}`);
+    
+    const client = await initMilvusClient();
+    
+    await client.loadCollection({
+      collection_name: COLLECTION_NAME
+    });
+    
+    // 构建删除表达式
+    const expr = `file_id == "${fileId}"`;
+    console.log(`【删除API】删除表达式: ${expr}`);
+    
+    // 修复：确保使用正确的参数格式传递expr
+    const deleteResult = await client.delete({
+      collection_name: COLLECTION_NAME,
+      expr: expr,
+      filter: expr // 添加filter参数作为备选
+    });
+    
+    console.log(`【删除API】删除结果:`, deleteResult);
+    
+    res.json({ success: true, message: `文档 ${fileId} 已删除` });
+  } catch (error) {
+    console.error('删除文档失败:', error);
+    res.status(503).json({ error: error.message });
+  }
+});
+
 // 全局错误处理中间件
 app.use((err, req, res, next) => {
   console.error('未捕获的错误:', err);

@@ -134,3 +134,20 @@ export const clearCollection = async () => {
     throw error;
   }
 };
+
+/**
+ * 删除指定文档
+ * @param {string} fileId - 要删除的文件ID
+ * @returns {Promise<boolean>} - 删除是否成功
+ */
+export const deleteDocument = async (fileId) => {
+  try {
+    console.log(`开始删除文档: ${fileId}`);
+    const response = await axios.delete(`${API_BASE_URL}/document/${fileId}`);
+    console.log(`删除文档成功: ${fileId}`);
+    return response.data.success;
+  } catch (error) {
+    console.error(`删除文档失败 (${fileId}):`, error);
+    throw error;
+  }
+};

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Form, Input, Select, Button, Card, Table, message, Spin } from 'antd';
-import { InboxOutlined } from '@ant-design/icons';
+import { Upload, Form, Input, Select, Button, Card, Table, message, Spin, Popconfirm } from 'antd';
+import { InboxOutlined, DeleteOutlined } from '@ant-design/icons';
 import { processAndStoreDocument } from '../services/documentService';
-import { getRecentDocuments, clearCollection} from '../services/milvusService';
+import { getRecentDocuments, clearCollection, deleteDocument } from '../services/milvusService';
 import { render } from 'react-dom';
 
 const { Dragger } = Upload;
@@ -13,6 +13,7 @@ const DocumentManagement = () => {
   const [recentDocuments, setRecentDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState(null);
 
   // 从Milvus获取最近文档并同步到localStorage
   useEffect(() => {
@@ -49,6 +50,28 @@ const DocumentManagement = () => {
       localStorage.setItem('recentDocuments', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  // 处理删除文档
+  const handleDeleteDocument = async (fileId) => {
+    try {
+      setDeletingDocId(fileId);
+      await deleteDocument(fileId);
+      
+      // 从文档列表中移除已删除的文档
+      setRecentDocuments(prev => {
+        const updated = prev.filter(doc => doc.uid !== fileId);
+        localStorage.setItem('recentDocuments', JSON.stringify(updated));
+        return updated;
+      });
+      
+      message.success('文档已成功删除');
+    } catch (error) {
+      console.error('删除文档失败:', error);
+      message.error('删除文档失败: ' + (error.message || '未知错误'));
+    } finally {
+      setDeletingDocId(null);
+    }
   };
 
   const documentTypes = [
@@ -88,6 +111,28 @@ const DocumentManagement = () => {
         };
         return statusMap[status] || status;
       }
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) => (
+        <Popconfirm
+          title="确定要删除这个文档吗？"
+          description="删除后将无法恢复，且会影响知识问答功能。"
+          onConfirm={() => handleDeleteDocument(record.uid)}
+          okText="确定"
+          cancelText="取消"
+        >
+          <Button 
+            type="text" 
+            danger 
+            icon={<DeleteOutlined />} 
+            loading={deletingDocId === record.uid}
+          >
+            删除
+          </Button>
+        </Popconfirm>
+      )
     }
   ];
 
@@ -277,19 +322,31 @@ const DocumentManagement = () => {
         </Form>
       </Card>
 
-      <Card title="文档列表">
+      <Card 
+        title="文档列表" 
+        extra={
+          <Popconfirm
+            title="确定要清空所有文档吗？"
+            description="清空后将无法恢复，且会影响知识问答功能。"
+            onConfirm={async () => {
+              try {
+                await clearCollection();
+                setRecentDocuments([]);
+                localStorage.removeItem('recentDocuments');
+                message.success('已清空所有文档');
+              } catch (error) {
+                message.error('清空文档失败: ' + error.message);
+              }
+            }}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button danger>清空所有文档</Button>
+          </Popconfirm>
+        }
+      >
         <Table
-          columns={[...columns, {
-            title: '上传时间',
-            dataIndex: 'uploadTime',
-            key: 'uploadTime',
-            render: (time, record) => {
-              // 尝试从metadata中获取uploadTime
-              const metadata = record.metadata ? JSON.parse(record.metadata) : null;
-              const timestamp = time || (metadata && metadata.uploadTime) || record.timestamp;
-              return timestamp ? new Date(timestamp).toLocaleString() : '-';
-            }
-          }]}
+          columns={columns}
           dataSource={recentDocuments}
           rowKey="uid"
           pagination={false}
