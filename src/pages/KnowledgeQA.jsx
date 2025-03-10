@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Input, Button, Select, Card, List, Space, message, Switch, Tooltip, Spin, Tag } from 'antd';
-import { SendOutlined, DatabaseOutlined, ClearOutlined, PlusOutlined, HistoryOutlined } from '@ant-design/icons';
+import { SendOutlined, DatabaseOutlined, ClearOutlined, PlusOutlined, HistoryOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
 import { getAvailableModels, chat, getEmbedding } from '../services/ollamaService';
 import { getRecentDocuments, searchSimilarDocuments } from '../services/milvusService';
 import { formatMessageContent } from '../utils/formatUtils';
-import { UserOutlined, RobotOutlined } from '@ant-design/icons';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -322,7 +321,7 @@ const KnowledgeQA = () => {
               renderItem={item => (
                 <List.Item className={`message-item message-${item.type}`}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <div style={{ fontWeight: 'bold' }}>
+                    <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {item.type === 'user' ? (
                         <Space>
                           <UserOutlined />
@@ -336,16 +335,16 @@ const KnowledgeQA = () => {
                       )}
                     </div>
                     {(() => {
-                        const { content, isFormatted } = formatMessageContent(item.content);
-                        return isFormatted ? (
-                          <div 
-                            className="formatted-content"
-                            dangerouslySetInnerHTML={{ __html: content }}
-                          />
-                        ) : (
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
-                        );
-                      })()}
+                      const { content, isFormatted } = formatMessageContent(item.content);
+                      return isFormatted ? (
+                        <div 
+                          className="formatted-content"
+                          dangerouslySetInnerHTML={{ __html: content }}
+                        />
+                      ) : (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
+                      );
+                    })()}
                   </Space>
                 </List.Item>
               )}
